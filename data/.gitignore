@@ -2,3 +2,12 @@
 smallterrain-blank.terrain
 # Except this file
 !.gitignore
+
+*.exe
+
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+data/SRTM3/
+data/TERRAIN/
