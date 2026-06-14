@@ -6,7 +6,9 @@ import (
 	"fmt"
 	myhandlers "github.com/geo-data/cesium-terrain-server/handlers"
 	"github.com/geo-data/cesium-terrain-server/log"
+	"github.com/geo-data/cesium-terrain-server/stores"
 	"github.com/geo-data/cesium-terrain-server/stores/fs"
+	"github.com/geo-data/cesium-terrain-server/stores/sqlite"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	l "log"
@@ -19,6 +21,11 @@ func main() {
 	tilesetRoot := flag.String("dir", ".", "the root directory under which tileset directories reside")
 	webRoot := flag.String("web-dir", "", "(optional) the root directory containing static files to be served")
 	memcached := flag.String("memcached", "", "(optional) memcached connection string for caching tiles e.g. localhost:11211")
+
+	storeType := flag.String("store", "fs", "storage backend: fs or sqlite")
+	sqlitePath := flag.String("sqlite", "", "path to sqlite terrain database")
+	sqliteCacheSize := flag.Int("sqlite-cache-size", 10000, "number of terrain tiles to cache in memory for sqlite store")
+
 	baseTerrainUrl := flag.String("base-terrain-url", "/tilesets", "base url prefix under which all tilesets are served")
 	noRequestLog := flag.Bool("no-request-log", false, "do not log client requests for resources")
 	logging := NewLogOpt()
@@ -32,7 +39,31 @@ func main() {
 	log.SetLog(l.New(os.Stderr, "", l.LstdFlags), logging.Priority)
 
 	// Get the tileset store
-	store := fs.New(*tilesetRoot)
+	//old original code store := fs.New(*tilesetRoot)
+	var store stores.Storer
+
+	switch *storeType {
+	case "fs":
+		store = fs.New(*tilesetRoot)
+
+	case "sqlite":
+		if *sqlitePath == "" {
+			log.Crit("sqlite path is required when -store sqlite is used")
+			os.Exit(1)
+		}
+
+		sqliteStore, err := sqlite.New(*sqlitePath, *sqliteCacheSize)
+		if err != nil {
+			log.Crit(fmt.Sprintf("failed to open sqlite database: %s", err))
+			os.Exit(1)
+		}
+
+		store = sqliteStore
+
+	default:
+		log.Crit(fmt.Sprintf("unsupported store type: %s", *storeType))
+		os.Exit(1)
+	}
 
 	r := mux.NewRouter()
 	r.HandleFunc(*baseTerrainUrl+"/{tileset}/layer.json", myhandlers.LayerHandler(store))

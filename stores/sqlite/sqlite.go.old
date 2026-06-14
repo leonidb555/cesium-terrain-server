@@ -1,0 +1,78 @@
+package sqlite
+
+import (
+	"database/sql"
+
+	"github.com/geo-data/cesium-terrain-server/stores"
+	_ "modernc.org/sqlite"
+)
+
+type Store struct {
+	db *sql.DB
+}
+
+func New(path string) (*Store, error) {
+	db, err := sql.Open("sqlite", "file:"+path+"?mode=ro")
+	if err != nil {
+		return nil, err
+	}
+
+	db.SetMaxOpenConns(1)
+
+	return &Store{db: db}, nil
+}
+
+func (s *Store) Tile(tileset string, tile *stores.Terrain) error {
+	var data []byte
+
+	err := s.db.QueryRow(`
+		SELECT data
+		FROM terrain_tiles
+		WHERE tileset = ? AND z = ? AND x = ? AND y = ?
+	`, tileset, tile.Z, tile.X, tile.Y).Scan(&data)
+
+	if err == sql.ErrNoRows {
+		return stores.ErrNoItem
+	}
+	if err != nil {
+		return err
+	}
+
+	return tile.UnmarshalBinary(data)
+}
+
+func (s *Store) Layer(tileset string) ([]byte, error) {
+	var data []byte
+
+	err := s.db.QueryRow(`
+		SELECT layer_json
+		FROM tilesets
+		WHERE name = ?
+	`, tileset).Scan(&data)
+
+	if err == sql.ErrNoRows {
+		return nil, stores.ErrNoItem
+	}
+
+	return data, err
+}
+
+func (s *Store) TilesetStatus(tileset string) stores.TilesetStatus {
+	var exists int
+
+	err := s.db.QueryRow(`
+		SELECT 1
+		FROM tilesets
+		WHERE name = ?
+		LIMIT 1
+	`, tileset).Scan(&exists)
+
+	if err == sql.ErrNoRows {
+		return stores.NOT_FOUND
+	}
+	if err != nil {
+		return stores.NOT_SUPPORTED
+	}
+
+	return stores.FOUND
+}

@@ -2,3 +2,11 @@ bin
 pkg
 src/github.com
 .go-bindata
+*.exe
+
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+data/SRTM3/
+data/TERRAIN/
