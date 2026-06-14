@@ -16,6 +16,99 @@ further simplify deployment of the server and testing of tilesets.  See the
 [Docker Registry](https://registry.hub.docker.com/u/geodata/cesium-terrain-server/)
 for further details.
 
+## SQLite Backend (Fork Extension)
+
+This fork adds support for serving Cesium terrain tiles directly from SQLite databases in addition to the original filesystem-based storage.
+
+### Features
+
+* Original filesystem backend
+* SQLite backend
+* Multiple terrain datasets stored in a single SQLite database
+* Pure Go SQLite driver (`modernc.org/sqlite`)
+* Prepared statements for efficient tile lookup
+* Memory-mapped SQLite I/O
+* Optional in-memory LRU cache
+* Terrain importer utility
+
+### SQLite Mode
+
+Start the server using a SQLite database:
+
+```sh
+cesium-terrain-server \
+  -store sqlite \
+  -sqlite data/TERRAIN/terrain.sqlite
+```
+
+### Filesystem Mode
+
+The original filesystem mode is still supported:
+
+```sh
+cesium-terrain-server \
+  -store fs \
+  -dir /data/tilesets/terrain
+```
+
+### Importing Existing Terrain Tiles
+
+A new utility is included to convert existing filesystem terrain tilesets into SQLite format:
+
+```sh
+terrain-import-sqlite \
+  -input data \
+  -tileset SRTM1 \
+  -output data/TERRAIN/terrain.sqlite
+```
+
+Multiple terrain datasets may be imported into the same SQLite database:
+
+```sh
+terrain-import-sqlite \
+  -input data \
+  -tileset SRTM3 \
+  -output data/TERRAIN/terrain.sqlite
+```
+
+### SQLite Database Structure
+
+#### tilesets
+
+| Column      | Type    |
+| ----------- | ------- |
+| name        | TEXT    |
+| layer_json  | BLOB    |
+| min_zoom    | INTEGER |
+| max_zoom    | INTEGER |
+| description | TEXT    |
+
+#### terrain_tiles
+
+| Column  | Type    |
+| ------- | ------- |
+| tileset | TEXT    |
+| z       | INTEGER |
+| x       | INTEGER |
+| y       | INTEGER |
+| data    | BLOB    |
+
+Primary key:
+
+```sql
+PRIMARY KEY (tileset, z, x, y)
+```
+
+### Example URLs
+
+```text
+/tilesets/SRTM1/layer.json
+/tilesets/SRTM1/0/0/0.terrain
+
+/tilesets/SRTM3/layer.json
+/tilesets/SRTM3/0/0/0.terrain
+```
+
 ## Usage
 
 The terrain server is a self contained binary with the following command line
